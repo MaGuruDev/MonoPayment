@@ -1,5 +1,26 @@
 # Changelog — MaGuru_MonoPayment
 
+## 1.1.0 — 2026-07-01
+
+### Added
+- `Gateway/Command/FinalizeCommand` — gateway `capture` command for Hold payment flow; calls `POST /api/merchant/invoice/finalize` with amount in kopiyky
+- `checkout_button_title` config field — text on the checkout payment button is now configurable via admin (Stores → Config → Payment Methods → Monobank → Checkout Button Label); default: `Pay via Monobank`
+- `Model/Config/Source/QrAmountType` — source model for QR amount type select (`merchant` / `client or fix`)
+- `qr_amount_type` config field — controls whether order amount is sent to Monobank API for QR terminal invoices; `client`/`fix` terminals reject any amount field, the module strips it automatically
+- `i18n/uk_UA.csv` — complete Ukrainian translations (180 strings) covering all admin config fields, invoice statuses, hold/capture flow, saved cards, QR, split, subscriptions, fiscal hooks
+- `i18n/en_US.csv` — complete English translations (182 strings) matching uk_UA coverage
+- `FinalizeCommandTest` — 4 unit tests: amount conversion to kopiyky, rounding, logging, skip on empty invoiceId
+- `CreateInvoiceCommandTest` — full rewrite: 5 tests for redirect no-op and wallet charge flows
+
+### Fixed
+- **Double invoice/create bug** — `CreateInvoiceCommand` was executing during `placeOrder` (orderId = 0), then `Start.php` couldn't find the invoice and created a second one; redirect flow is now a no-op in `CreateInvoiceCommand`, invoice is created in `Start.php` after order is saved with a real ID
+- **Premature Magento invoice** — `payment_action` changed from `authorize_capture` to `authorize`; Magento no longer auto-creates an invoice during `placeOrder` for a payment that has not been captured yet; invoice is created by `OrderStatusHandler` on webhook `success` only
+- **Hold capture amount** — `Controller/Adminhtml/Order/Capture.php` now passes the invoice amount to `invoiceService->finalize()` (was passing no amount, causing "finalization amount exceeds hold amount" API error)
+
+### Changed
+- `CommandPool` — `capture` command now maps to `FinalizeCommand` instead of `CreateInvoiceCommand`
+- `CreateInvoiceCommand` — redirect flow sets `isTransactionClosed = false` and returns; wallet flow unchanged (charges via `WalletService`)
+
 ## 1.0.5 — 2026-05-18
 
 ### Added
