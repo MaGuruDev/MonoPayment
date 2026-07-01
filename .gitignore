@@ -1,0 +1,23 @@
+# Magento generated
+/var/
+/generated/
+/.cache/
+
+# Composer
+/vendor/
+
+# PHPUnit
+.phpunit.result.cache
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

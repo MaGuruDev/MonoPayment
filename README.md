@@ -43,6 +43,7 @@ bin/magento cache:flush
 | Send Receipt Email | Send Monobank electronic receipt to customer after payment |
 | QR Enabled | Inject `qrId` into invoice for QR terminal payments |
 | QR Terminal ID | QR terminal ID from your Monobank merchant account |
+| QR Amount Type | `merchant` — send order amount per invoice (use for `amountType: merchant` terminals); `client/fix` — do not send amount (for `amountType: client` or `fix` terminals) |
 | Split Enabled | Inject `splitReceiverId` into basketOrder (marketplace split) |
 | Split Receiver ID | Monobank split receiver ID |
 | Agent Fee Percent | Optional agent commission percent |
@@ -73,6 +74,8 @@ bin/magento cache:flush
 ### QR Payments
 - Inject `qrId` into any invoice for QR terminal-based payments
 - Admin page: **System → Monobank → QR Terminals** (live list from Monobank API)
+- `QR Amount Type` config: `merchant` terminals require `amount` in the API call; `client`/`fix` terminals reject any amount field — the module strips it automatically (including `basketOrder.sum`/`total`)
+- Only `merchant`-type QR terminals are compatible with the full API checkout flow
 
 ### Split / Marketplace
 - Inject `splitReceiverId` into `basketOrder` per order item
@@ -95,7 +98,9 @@ bin/magento cache:flush
 - Cron: every 4 hours
 
 ### Order Lifecycle
-- Hold invoice → auto-capture on shipment (`ShipmentSaveAfter`)
+- `payment_action = authorize` — no Magento invoice is created during `placeOrder`; invoice is created only after webhook `success` (debit) or after Hold capture → webhook `success` (hold)
+- Hold invoice → auto-capture on shipment (`ShipmentSaveAfter` → `finalize` queue)
+- Hold manual capture → **Capture Payment** button in admin order view → `POST /api/merchant/invoice/finalize` → webhook `success` → Magento invoice created
 - Cancel invoice on order cancel (`CancelAfter`)
 - Refund via credit memo (`CreditMemoSaveAfter`)
 - Status polling cron every 5 minutes (fallback if webhook fails)
@@ -148,7 +153,7 @@ POST /V1/mono/payment/invoice/:invoiceId/sync        [admin]
 bin/clinotty php vendor/bin/phpunit -c app/code/MaGuru/MonoPayment/Test/Unit/phpunit.xml
 ```
 
-247 unit tests · 398 assertions · PHPStan Level 8 ✅
+420 unit tests · 630 assertions · PHPStan Level 8 ✅
 
 ---
 
