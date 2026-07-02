@@ -1,5 +1,31 @@
 # Changelog — MaGuru_MonoPayment
 
+## 1.1.2 — 2026-07-02
+
+### Fixed
+- **Webhook status updates silently dropped on equal `modifiedDate`** — Monobank's `modifiedDate` has 1-second resolution, so a legitimate status transition (e.g. `processing` → `hold`) can share the exact timestamp with the previous webhook. The H2 stale-webhook guard used `<=` instead of `<`, discarding these updates; invoice status got stuck and admin actions gated on the current status (e.g. Capture) never appeared.
+
+### Changed
+- `Acquiring API` config group (API Token, Validate Token button, Payment Webhook URL note, API Base URL dev override) moved here from `MonoCore` — same admin section/path, same config values; only appears once `MonoPayment` is installed
+- Added missing DocBlocks to `_construct()` overrides (Data/ResourceModel/Collection), `configure()` in Console Commands, `Cron::execute()`, and several private helper methods per project DocBlock conventions
+- Documented required message queue consumer setup (`app/etc/env.php` → `cron_consumers_runner`) in README — without it, Hold auto-capture, invoice cancel/remove, and receipt emails silently never run
+
+## 1.1.1 — 2026-07-01
+
+### Fixed
+- **Saved Cards page 404** — customer account nav link and `DeleteCard` redirects pointed to `mono/account/cards` instead of the module's actual frontName `mono-payment/account/cards`
+- **Saved Cards layout never applied** — `mono_account_cards_index.xml` renamed to `mono_payment_account_cards.xml` to match the controller's full action name; the block was silently ignored before
+- **Wallet `masked_pan` wiped on capture** — `OrderStatusHandler` no longer nulls out the invoice's `payment_method`/`masked_pan` when a webhook's `paymentInfo` omits those fields; Hold-capture success webhooks don't repeat card details, so the previously known value is now preserved
+- **Saved card token never reached the gateway** — added `Observer/DataAssignObserver` on `payment_method_assign_data_monopay`; `mono_card_token` submitted from checkout was never copied into the payment's additional information, so "pay with saved card" silently fell back to the full redirect flow every time
+- **`INVALID_MERCHANT_PAYM_INFO` on saved-card payments** — `WalletService::charge()` now dispatches `mono_payment_before_invoice_create` / `mono_payment_before_invoice_send`, the same events `InvoiceService::create()` uses, so MonoFiscal's basket building and split-receiver injection also apply to wallet payments (Monobank rejects an empty `basketOrder` when fiscalization or split payments are enabled)
+- **Hold ignored for saved-card payments** — `WalletService::charge()` now sends `paymentType` from config to `/api/merchant/wallet/payment` (previously omitted, so Monobank defaulted to immediate `debit` regardless of the merchant's Hold setting) and stores the same value on the local invoice instead of a hardcoded `debit`
+
+### Added
+- `SaveWalletAfterSuccess` falls back to the invoice's `masked_pan` when the webhook payload doesn't include one
+- `Test/Unit/Observer/DataAssignObserverTest` — 3 tests
+- `WalletServiceTest::testChargeSendsPaymentTypeFromConfigInPayload` — Hold `paymentType` propagation
+- `SaveWalletAfterSuccessTest::testFallsBackToInvoiceMaskedPanWhenPayloadHasNone`
+
 ## 1.1.0 — 2026-07-01
 
 ### Added

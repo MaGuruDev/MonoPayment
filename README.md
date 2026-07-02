@@ -28,6 +28,42 @@ bin/magento cache:flush
 
 ---
 
+## Message Queue Setup
+
+MonoPayment publishes several async operations to Magento's message queue instead of calling the Monobank API synchronously from observers. **These queues do nothing until a consumer processes them** — Magento does not run consumers automatically out of the box.
+
+| Consumer | Purpose |
+|----------|---------|
+| `mono_payment.invoice.cancel` | Cancel invoice on order cancellation |
+| `mono_payment.invoice.finalize` | Auto-capture Hold invoice on shipment |
+| `mono_payment.invoice.remove` | Remove invoice (admin action) |
+| `mono_payment.invoice.receipt` | Send electronic receipt email |
+
+**Recommended:** register the consumers in `app/etc/env.php` so Magento's own cron picks them up automatically (no extra process to manage):
+
+```php
+'cron_consumers_runner' => [
+    'cron_run' => true,
+    'max_messages' => 200,
+    'consumers' => [
+        'mono_payment.invoice.cancel',
+        'mono_payment.invoice.finalize',
+        'mono_payment.invoice.remove',
+        'mono_payment.invoice.receipt',
+    ]
+],
+```
+
+**Alternative:** run a persistent process per consumer under supervisor/systemd:
+
+```bash
+bin/magento queue:consumers:start mono_payment.invoice.cancel
+```
+
+Without one of the above, Hold auto-capture on shipment, invoice cancel/remove, and receipt emails will silently never happen — messages just accumulate unprocessed in the `queue_message` table.
+
+---
+
 ## Configuration
 
 **Stores → Configuration → Payment Methods → Monobank (MaGuru)**
@@ -51,6 +87,15 @@ bin/magento cache:flush
 | MonoPay Button Key ID | Key ID from Monobank pubkey list |
 | MonoPay Button Private Key | ECDSA P-256 private key PEM (encrypted) |
 | Debug Logging | Write detailed logs to `var/log/mono_payment.log` |
+
+**Stores → Configuration → MaGuru → Monobank Integration → Acquiring API:**
+
+| Field | Description |
+|-------|-------------|
+| API Token (X-Token) | Your Monobank merchant token from `web.monobank.ua` → Merchant section (encrypted) |
+| Validate Token | Button — calls `GET /api/merchant/details` and shows the result inline |
+| Payment Webhook URL | Read-only note showing the URL to register in your Monobank merchant cabinet |
+| API Base URL (Dev Override) | Leave empty to use `https://api.monobank.ua`; set to a local mock URL for development/testing |
 
 ---
 
@@ -153,7 +198,7 @@ POST /V1/mono/payment/invoice/:invoiceId/sync        [admin]
 bin/clinotty php vendor/bin/phpunit -c app/code/MaGuru/MonoPayment/Test/Unit/phpunit.xml
 ```
 
-420 unit tests · 630 assertions · PHPStan Level 8 ✅
+425 unit tests · 635 assertions · PHPStan Level 8 ✅
 
 ---
 
